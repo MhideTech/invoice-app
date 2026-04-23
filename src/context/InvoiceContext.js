@@ -1,0 +1,194 @@
+// src/context/InvoiceContext.js
+import React, { createContext, useContext, useCallback } from "react";
+import { useLocalStorage } from "../hooks/useLocalStorage";
+import { generateId, addDays, getTodayString } from "../utils/formatters";
+
+const InvoiceContext = createContext(null);
+
+const SEED_DATA = [
+  {
+    id: "RT3080",
+    createdAt: "2021-08-18",
+    paymentDue: "2021-08-19",
+    description: "Re-branding",
+    paymentTerms: 1,
+    clientName: "Jensen Huang",
+    clientEmail: "jensenh@mail.com",
+    status: "paid",
+    senderAddress: { street: "19 Union Terrace", city: "London", postCode: "E1 3EZ", country: "United Kingdom" },
+    clientAddress: { street: "106 Kendell Street", city: "Sharrington", postCode: "NR24 5WQ", country: "United Kingdom" },
+    items: [{ id: "1", name: "Brand Guidelines", quantity: 1, price: 1800.9, total: 1800.9 }],
+    total: 1800.9,
+  },
+  {
+    id: "XM9141",
+    createdAt: "2021-08-21",
+    paymentDue: "2021-09-20",
+    description: "Graphic Design",
+    paymentTerms: 30,
+    clientName: "Alex Grim",
+    clientEmail: "alexgrim@mail.com",
+    status: "pending",
+    senderAddress: { street: "19 Union Terrace", city: "London", postCode: "E1 3EZ", country: "United Kingdom" },
+    clientAddress: { street: "84 Church Way", city: "Bradford", postCode: "BD1 9PB", country: "United Kingdom" },
+    items: [
+      { id: "1", name: "Banner Design", quantity: 1, price: 156.0, total: 156.0 },
+      { id: "2", name: "Email Design", quantity: 2, price: 200.0, total: 400.0 },
+    ],
+    total: 556.0,
+  },
+  {
+    id: "RG0314",
+    createdAt: "2021-09-24",
+    paymentDue: "2021-10-01",
+    description: "Website Redesign",
+    paymentTerms: 7,
+    clientName: "John Morrison",
+    clientEmail: "jm@myco.com",
+    status: "paid",
+    senderAddress: { street: "19 Union Terrace", city: "London", postCode: "E1 3EZ", country: "United Kingdom" },
+    clientAddress: { street: "79 Dover Road", city: "Westhall", postCode: "IP19 3PF", country: "United Kingdom" },
+    items: [{ id: "1", name: "Website Redesign", quantity: 1, price: 14002.33, total: 14002.33 }],
+    total: 14002.33,
+  },
+  {
+    id: "AA1449",
+    createdAt: "2021-10-07",
+    paymentDue: "2021-10-14",
+    description: "Re-branding",
+    paymentTerms: 7,
+    clientName: "Alysa Werner",
+    clientEmail: "alysa@email.co.uk",
+    status: "pending",
+    senderAddress: { street: "19 Union Terrace", city: "London", postCode: "E1 3EZ", country: "United Kingdom" },
+    clientAddress: { street: "63 Warwick Road", city: "Carlisle", postCode: "CA20 2TN", country: "United Kingdom" },
+    items: [{ id: "1", name: "Re-branding", quantity: 1, price: 3102.04, total: 3102.04 }],
+    total: 3102.04,
+  },
+  {
+    id: "TY9141",
+    createdAt: "2021-10-08",
+    paymentDue: "2021-10-15",
+    description: "Landing Page Design",
+    paymentTerms: 7,
+    clientName: "Mellisa Clarke",
+    clientEmail: "mellisa.clarke@example.com",
+    status: "pending",
+    senderAddress: { street: "19 Union Terrace", city: "London", postCode: "E1 3EZ", country: "United Kingdom" },
+    clientAddress: { street: "46 Abbey Row", city: "Cambridge", postCode: "CB5 6EG", country: "United Kingdom" },
+    items: [
+      { id: "1", name: "New Logo", quantity: 1, price: 1532.0, total: 1532.0 },
+      { id: "2", name: "Brand Guidelines", quantity: 1, price: 2500.0, total: 2500.0 },
+    ],
+    total: 4032.0,
+  },
+  {
+    id: "FV2353",
+    createdAt: "2021-11-05",
+    paymentDue: "2021-12-05",
+    description: "Logo Re-design",
+    paymentTerms: 30,
+    clientName: "Anita Wainwright",
+    clientEmail: "",
+    status: "draft",
+    senderAddress: { street: "19 Union Terrace", city: "London", postCode: "E1 3EZ", country: "United Kingdom" },
+    clientAddress: { street: "", city: "", postCode: "", country: "" },
+    items: [{ id: "1", name: "Logo Re-design", quantity: 1, price: 3102.04, total: 3102.04 }],
+    total: 3102.04,
+  },
+];
+
+export function InvoiceProvider({ children }) {
+  const [invoices, setInvoices] = useLocalStorage("invoice-data", SEED_DATA);
+
+  const addInvoice = useCallback(
+    (data, isDraft = false) => {
+      const id = generateId();
+      const today = getTodayString();
+      const paymentDue = addDays(data.createdAt || today, data.paymentTerms);
+      const items = data.items.map((item) => ({
+        ...item,
+        total: Number(item.quantity) * Number(item.price),
+      }));
+      const total = items.reduce((sum, item) => sum + item.total, 0);
+      const newInvoice = {
+        ...data,
+        id,
+        createdAt: data.createdAt || today,
+        paymentDue,
+        items,
+        total,
+        status: isDraft ? "draft" : "pending",
+      };
+      setInvoices((prev) => [newInvoice, ...prev]);
+      return id;
+    },
+    [setInvoices]
+  );
+
+  const updateInvoice = useCallback(
+    (id, data) => {
+      setInvoices((prev) =>
+        prev.map((inv) => {
+          if (inv.id !== id) return inv;
+          const paymentDue = addDays(
+            data.createdAt || inv.createdAt,
+            data.paymentTerms
+          );
+          const items = data.items.map((item) => ({
+            ...item,
+            total: Number(item.quantity) * Number(item.price),
+          }));
+          const total = items.reduce((sum, item) => sum + item.total, 0);
+          return {
+            ...inv,
+            ...data,
+            paymentDue,
+            items,
+            total,
+          };
+        })
+      );
+    },
+    [setInvoices]
+  );
+
+  const deleteInvoice = useCallback(
+    (id) => {
+      setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    },
+    [setInvoices]
+  );
+
+  const markAsPaid = useCallback(
+    (id) => {
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === id && inv.status === "pending"
+            ? { ...inv, status: "paid" }
+            : inv
+        )
+      );
+    },
+    [setInvoices]
+  );
+
+  const getInvoice = useCallback(
+    (id) => invoices.find((inv) => inv.id === id),
+    [invoices]
+  );
+
+  return (
+    <InvoiceContext.Provider
+      value={{ invoices, addInvoice, updateInvoice, deleteInvoice, markAsPaid, getInvoice }}
+    >
+      {children}
+    </InvoiceContext.Provider>
+  );
+}
+
+export function useInvoices() {
+  const ctx = useContext(InvoiceContext);
+  if (!ctx) throw new Error("useInvoices must be used within InvoiceProvider");
+  return ctx;
+}
